@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timer Controller</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 1rem;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-top: 1rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            opacity: 0.9;
+            font-size: 0.875rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            color: #1e293b;
+        }
+
+        .section-title {
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 1rem;
+        }
+
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .preset-btn {
+            padding: 1.5rem 1rem;
+            border: none;
+            border-radius: 1rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .preset-btn:active {
+            transform: scale(0.95);
+        }
+
+        .preset-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .custom-timer {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .custom-input {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.75rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .custom-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .control-buttons {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .control-btn {
+            padding: 1.25rem;
+            border: none;
+            border-radius: 1rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.125rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn.start {
+            background: #22c55e;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4);
+        }
+
+        .control-btn.pause {
+            background: #f59e0b;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+        }
+
+        .control-btn.reset {
+            background: #ef4444;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-bar {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 1rem;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #1e293b;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        .status-dot.connected {
+            background: #22c55e;
+            animation: none;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .current-time {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .alert {
+            background: #fef3c7;
+            border: 2px solid #fbbf24;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            color: #92400e;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .alert.info {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            color: #1e3a8a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⏱️ Timer Controller</h1>
+            <div class="subtitle">Church Function Time Keeper</div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Connecting...</span>
+            </div>
+            <div class="current-time" id="currentTime">--:--</div>
+        </div>
+
+        <div class="card">
+            <div id="setupAlert" class="alert info" style="display: none;">
+                <strong>⚠️ Setup Required:</strong> Please update the Firebase configuration in both files with your project credentials.
+            </div>
+
+            <div class="section-title">Quick Presets</div>
+            <div class="preset-grid">
+                <button class="preset-btn" onclick="startPreset(300)">5 MIN</button>
+                <button class="preset-btn" onclick="startPreset(600)">10 MIN</button>
+                <button class="preset-btn" onclick="startPreset(900)">15 MIN</button>
+                <button class="preset-btn" onclick="startPreset(1200)">20 MIN</button>
+            </div>
+
+            <div class="section-title">Custom Duration</div>
+            <div class="custom-timer">
+                <input 
+                    type="number" 
+                    id="customMinutes" 
+                    class="custom-input" 
+                    placeholder="Minutes" 
+                    min="1" 
+                    max="120"
+                />
+                <button class="preset-btn" onclick="startCustom()" style="flex: 0 0 auto; padding: 1rem 2rem;">
+                    Start
+                </button>
+            </div>
+
+            <div class="section-title">Controls</div>
+            <div class="control-buttons">
+                <button class="control-btn start" id="startBtn" onclick="resumeTimer()" disabled>
+                    ▶️ Resume
+                </button>
+                <button class="control-btn pause" id="pauseBtn" onclick="pauseTimer()" disabled>
+                    ⏸️ Pause
+                </button>
+                <button class="control-btn reset" onclick="resetTimer()">
+                    🔄 Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getDatabase, ref, set, onValue, get } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+        // Firebase configuration - YOU'LL NEED TO REPLACE THIS
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAiG53GcvPpn6nUSRjHL0fZ9Zg8x7Gep7A",
+  authDomain: "timer-7f805.firebaseapp.com",
+  databaseURL: "https://timer-7f805-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "timer-7f805",
+  storageBucket: "timer-7f805.firebasestorage.app",
+  messagingSenderId: "441965417573",
+  appId: "1:441965417573:web:3436aa95d33177476a628c",
+  measurementId: "G-QRJVHZTHVT"
+};
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const timerRef = ref(database, 'timer');
+
+        // DOM elements
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const currentTime = document.getElementById('currentTime');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const setupAlert = document.getElementById('setupAlert');
+
+        let currentDuration = 0;
+        let isPaused = false;
+
+        // Check if Firebase is configured
+        if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+            setupAlert.style.display = 'block';
+        }
+
+        // Listen for timer state
+        onValue(timerRef, (snapshot) => {
+            const data = snapshot.val();
+            
+            statusDot.classList.add('connected');
+            statusText.textContent = 'Connected';
+
+            if (data) {
+                const { duration, startTime, isRunning } = data;
+                currentDuration = duration;
+
+                if (isRunning && startTime) {
+                    const now = Date.now();
+                    const endTime = startTime + (duration * 1000);
+                    const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+                    displayTime(remaining);
+                    
+                    startBtn.disabled = true;
+                    pauseBtn.disabled = false;
+                } else {
+                    displayTime(duration);
+                    startBtn.disabled = false;
+                    pauseBtn.disabled = true;
+                }
+            }
+        }, (error) => {
+            console.error('Firebase error:', error);
+            statusDot.classList.remove('connected');
+            statusText.textContent = 'Disconnected';
+        });
+
+        function displayTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            currentTime.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Make functions global
+        window.startPreset = function(seconds) {
+            set(timerRef, {
+                duration: seconds,
+                startTime: Date.now(),
+                isRunning: true,
+                reset: false
+            }).catch(error => {
+                console.error('Error starting timer:', error);
+                alert('Failed to start timer. Check console for details.');
+            });
+        };
+
+        window.startCustom = function() {
+            const minutes = parseInt(document.getElementById('customMinutes').value);
+            if (minutes && minutes > 0 && minutes <= 120) {
+                window.startPreset(minutes * 60);
+                document.getElementById('customMinutes').value = '';
+            } else {
+                alert('Please enter a valid duration (1-120 minutes)');
+            }
+        };
+
+        window.pauseTimer = function() {
+            get(timerRef).then((snapshot) => {
+                const data = snapshot.val();
+                if (data && data.isRunning) {
+                    const now = Date.now();
+                    const endTime = data.startTime + (data.duration * 1000);
+                    const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+                    
+                    set(timerRef, {
+                        duration: remaining,
+                        startTime: null,
+                        isRunning: false,
+                        reset: false
+                    });
+                }
+            });
+        };
+
+        window.resumeTimer = function() {
+            get(timerRef).then((snapshot) => {
+                const data = snapshot.val();
+                if (data && !data.isRunning && data.duration > 0) {
+                    set(timerRef, {
+                        duration: data.duration,
+                        startTime: Date.now(),
+                        isRunning: true,
+                        reset: false
+                    });
+                }
+            });
+        };
+
+        window.resetTimer = function() {
+            if (confirm('Reset the timer? This will clear the display.')) {
+                set(timerRef, {
+                    duration: 0,
+                    startTime: null,
+                    isRunning: false,
+                    reset: true
+                });
+            }
+        };
+    </script>
+</body>
+</html>

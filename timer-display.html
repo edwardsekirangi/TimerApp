@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timer Display - Pulpit View</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@900&family=Inter:wght@600&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            transition: background-color 0.5s ease;
+        }
+
+        .container {
+            text-align: center;
+            width: 100%;
+            padding: 2rem;
+        }
+
+        .time-display {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(8rem, 25vw, 28rem);
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -0.02em;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 40px currentColor;
+            transition: all 0.3s ease;
+        }
+
+        .status-text {
+            font-size: clamp(2rem, 6vw, 5rem);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            opacity: 0.9;
+            margin-top: 1rem;
+        }
+
+        /* Color States */
+        body.state-ready {
+            background: #1a1a2e;
+        }
+
+        body.state-ready .time-display {
+            color: #00ff9f;
+        }
+
+        body.state-running {
+            background: #0f172a;
+        }
+
+        body.state-running .time-display {
+            color: #22c55e;
+        }
+
+        body.state-warning {
+            background: #1e1a0f;
+        }
+
+        body.state-warning .time-display {
+            color: #fbbf24;
+            animation: pulse-warning 2s ease-in-out infinite;
+        }
+
+        body.state-critical {
+            background: #1a0f0f;
+        }
+
+        body.state-critical .time-display {
+            color: #ef4444;
+            animation: pulse-critical 1s ease-in-out infinite;
+        }
+
+        body.state-timeup {
+            background: #dc2626;
+            animation: flash 0.5s ease-in-out infinite;
+        }
+
+        body.state-timeup .time-display {
+            color: #fff;
+            font-size: clamp(6rem, 20vw, 20rem);
+            animation: shake 0.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-warning {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(0.98); }
+        }
+
+        @keyframes pulse-critical {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.85; transform: scale(0.97); }
+        }
+
+        @keyframes flash {
+            0%, 100% { background: #dc2626; }
+            50% { background: #991b1b; }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.5rem 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        .status-dot.connected {
+            background: #22c55e;
+            animation: none;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .setup-message {
+            font-size: clamp(1.5rem, 4vw, 3rem);
+            color: #64748b;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body class="state-ready">
+    <div class="connection-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Connecting...</span>
+    </div>
+
+    <div class="container">
+        <div class="time-display" id="timeDisplay">--:--</div>
+        <div class="status-text" id="statusMessage">Ready</div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAiG53GcvPpn6nUSRjHL0fZ9Zg8x7Gep7A",
+  authDomain: "timer-7f805.firebaseapp.com",
+  databaseURL: "https://timer-7f805-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "timer-7f805",
+  storageBucket: "timer-7f805.firebasestorage.app",
+  messagingSenderId: "441965417573",
+  appId: "1:441965417573:web:3436aa95d33177476a628c",
+  measurementId: "G-QRJVHZTHVT"
+};
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const timerRef = ref(database, 'timer');
+
+        // DOM elements
+        const timeDisplay = document.getElementById('timeDisplay');
+        const statusMessage = document.getElementById('statusMessage');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const body = document.body;
+
+        let countdownInterval = null;
+        let endTime = null;
+
+        // Listen for timer updates from Firebase
+        onValue(timerRef, (snapshot) => {
+            const data = snapshot.val();
+            
+            // Update connection status
+            statusDot.classList.add('connected');
+            statusText.textContent = 'Connected';
+
+            if (!data) {
+                resetDisplay();
+                return;
+            }
+
+            const { duration, startTime, isRunning, reset } = data;
+
+            if (reset) {
+                resetDisplay();
+                return;
+            }
+
+            if (isRunning && startTime) {
+                startCountdown(duration, startTime);
+            } else if (!isRunning) {
+                clearInterval(countdownInterval);
+                if (duration) {
+                    displayTime(duration);
+                    updateState('ready');
+                    statusMessage.textContent = 'Ready';
+                }
+            }
+        }, (error) => {
+            console.error('Firebase error:', error);
+            statusDot.classList.remove('connected');
+            statusText.textContent = 'Disconnected';
+        });
+
+        function startCountdown(durationSeconds, startTimestamp) {
+            clearInterval(countdownInterval);
+            endTime = startTimestamp + (durationSeconds * 1000);
+
+            countdownInterval = setInterval(() => {
+                const now = Date.now();
+                const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+
+                if (remaining === 0) {
+                    clearInterval(countdownInterval);
+                    showTimeUp();
+                } else {
+                    displayTime(remaining);
+                    updateStateBasedOnTime(remaining);
+                }
+            }, 100); // Update every 100ms for smooth countdown
+        }
+
+        function displayTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            timeDisplay.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+            statusMessage.textContent = 'Time Remaining';
+        }
+
+        function updateStateBasedOnTime(seconds) {
+            if (seconds > 120) {
+                updateState('running');
+            } else if (seconds > 60) {
+                updateState('warning');
+            } else {
+                updateState('critical');
+            }
+        }
+
+        function showTimeUp() {
+            timeDisplay.textContent = 'TIME UP';
+            statusMessage.textContent = '';
+            updateState('timeup');
+        }
+
+        function updateState(state) {
+            body.className = `state-${state}`;
+        }
+
+        function resetDisplay() {
+            clearInterval(countdownInterval);
+            timeDisplay.textContent = '--:--';
+            statusMessage.textContent = 'Ready';
+            updateState('ready');
+        }
+    </script>
+</body>
+</html>
