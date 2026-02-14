@@ -341,8 +341,8 @@
 
         // Auto-hide configuration
         const AUTO_HIDE_CONFIG = {
-            showDuration: 10000,      // Show for 10 seconds
-            hideDuration: 50000,      // Hide for 50 seconds (1 minute cycle total)
+            showDuration: 30000,      // Show for 30 seconds
+            hideDuration: 150000,     // Hide for 150 seconds (3 minute cycle total)
             finalMinutesThreshold: 120 // Stay visible for last 2 minutes (120 seconds)
         };
 
@@ -607,7 +607,7 @@
             mainContainer.classList.add('hidden');
             connectionStatus.classList.add('hidden');
             autoHideIndicator.classList.add('hidden');
-            controlPanel.classList.add('hidden');
+            // Keep controlPanel visible - removed from hiding
         }
 
         function stopAutoHide() {
