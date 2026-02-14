@@ -188,6 +188,37 @@
         .auto-hide-indicator.hidden {
             opacity: 0;
         }
+
+        /* Wake lock indicator */
+        .wake-lock-indicator {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            padding: 0.5rem 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            opacity: 0.7;
+            transition: opacity 1.5s ease-in-out;
+        }
+
+        .wake-lock-indicator.hidden {
+            opacity: 0;
+        }
+
+        .wake-lock-dot {
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 50%;
+            background: #64748b;
+        }
+
+        .wake-lock-dot.active {
+            background: #22c55e;
+        }
     </style>
 </head>
 <body class="state-ready">
@@ -202,6 +233,11 @@
     </div>
 
     <div class="auto-hide-indicator" id="autoHideIndicator"></div>
+    
+    <div class="wake-lock-indicator" id="wakeLockIndicator">
+        <div class="wake-lock-dot" id="wakeLockDot"></div>
+        <span id="wakeLockText">Screen Lock</span>
+    </div>
 
     <!-- Firebase SDK -->
     <script type="module">
@@ -232,6 +268,9 @@
         const mainContainer = document.getElementById('mainContainer');
         const connectionStatus = document.getElementById('connectionStatus');
         const autoHideIndicator = document.getElementById('autoHideIndicator');
+        const wakeLockIndicator = document.getElementById('wakeLockIndicator');
+        const wakeLockDot = document.getElementById('wakeLockDot');
+        const wakeLockText = document.getElementById('wakeLockText');
         const body = document.body;
 
         let countdownInterval = null;
@@ -240,13 +279,72 @@
         let autoHideTimeout = null;
         let isVisible = true;
 
+        // Wake Lock variables
+        let wakeLock = null;
+
         // Auto-hide configuration
-        // The timer will show/hide in intervals, staying visible during the last 2 minutes
         const AUTO_HIDE_CONFIG = {
             showDuration: 10000,      // Show for 10 seconds
             hideDuration: 50000,      // Hide for 50 seconds (1 minute cycle total)
             finalMinutesThreshold: 120 // Stay visible for last 2 minutes (120 seconds)
         };
+
+        // ============ WAKE LOCK FUNCTIONALITY ============
+        
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock activated');
+                    
+                    wakeLockDot.classList.add('active');
+                    wakeLockText.textContent = 'Screen Awake';
+
+                    // Listen for wake lock release
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock released');
+                        wakeLockDot.classList.remove('active');
+                        wakeLockText.textContent = 'Screen Lock';
+                    });
+                } else {
+                    console.warn('Wake Lock API not supported');
+                    wakeLockText.textContent = 'Not Supported';
+                }
+            } catch (err) {
+                console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+                wakeLockText.textContent = 'Lock Failed';
+            }
+        }
+
+        async function releaseWakeLock() {
+            if (wakeLock !== null) {
+                try {
+                    await wakeLock.release();
+                    wakeLock = null;
+                } catch (err) {
+                    console.error('Error releasing wake lock:', err);
+                }
+            }
+        }
+
+        // Re-request wake lock when page becomes visible again
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible' && wakeLock === null) {
+                await requestWakeLock();
+            }
+        });
+
+        // Request wake lock on page load
+        requestWakeLock();
+
+        // Also request on user interaction (for better browser compatibility)
+        document.addEventListener('click', () => {
+            if (wakeLock === null) {
+                requestWakeLock();
+            }
+        }, { once: true });
+
+        // ============ FIREBASE & TIMER LOGIC ============
 
         // Listen for timer updates from Firebase
         onValue(timerRef, (snapshot) => {
@@ -364,6 +462,7 @@
             mainContainer.classList.remove('hidden');
             connectionStatus.classList.remove('hidden');
             autoHideIndicator.classList.remove('hidden');
+            wakeLockIndicator.classList.remove('hidden');
         }
 
         function hideDisplay() {
@@ -371,6 +470,7 @@
             mainContainer.classList.add('hidden');
             connectionStatus.classList.add('hidden');
             autoHideIndicator.classList.add('hidden');
+            wakeLockIndicator.classList.add('hidden');
         }
 
         function stopAutoHide() {
@@ -417,6 +517,11 @@
             updateState('ready');
             totalDuration = 0;
         }
+
+        // Clean up wake lock when page unloads
+        window.addEventListener('beforeunload', () => {
+            releaseWakeLock();
+        });
     </script>
 </body>
 </html>
