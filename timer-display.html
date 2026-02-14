@@ -189,35 +189,84 @@
             opacity: 0;
         }
 
-        /* Wake lock indicator */
-        .wake-lock-indicator {
+        /* Control Panel */
+        .control-panel {
             position: fixed;
             bottom: 1rem;
             right: 1rem;
-            padding: 0.5rem 1rem;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 0.5rem;
-            font-size: 0.75rem;
             display: flex;
-            align-items: center;
             gap: 0.5rem;
-            opacity: 0.7;
+            flex-direction: column;
+            align-items: flex-end;
+            opacity: 1;
             transition: opacity 1.5s ease-in-out;
         }
 
-        .wake-lock-indicator.hidden {
+        .control-panel.hidden {
             opacity: 0;
         }
 
-        .wake-lock-dot {
+        .control-btn {
+            padding: 0.75rem 1rem;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.5rem;
+            color: #fff;
+            font-size: 0.875rem;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .control-btn:hover {
+            background: rgba(0, 0, 0, 0.95);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .control-btn:active {
+            transform: translateY(0);
+        }
+
+        .control-btn.active {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: #22c55e;
+        }
+
+        .control-btn .indicator {
             width: 0.5rem;
             height: 0.5rem;
             border-radius: 50%;
             background: #64748b;
+            transition: background 0.2s ease;
         }
 
-        .wake-lock-dot.active {
+        .control-btn.active .indicator {
             background: #22c55e;
+        }
+
+        .control-btn .icon {
+            font-size: 1rem;
+        }
+
+        /* Fullscreen styles */
+        body:-webkit-full-screen {
+            width: 100%;
+            height: 100%;
+        }
+
+        body:-moz-full-screen {
+            width: 100%;
+            height: 100%;
+        }
+
+        body:fullscreen {
+            width: 100%;
+            height: 100%;
         }
     </style>
 </head>
@@ -234,9 +283,15 @@
 
     <div class="auto-hide-indicator" id="autoHideIndicator"></div>
     
-    <div class="wake-lock-indicator" id="wakeLockIndicator">
-        <div class="wake-lock-dot" id="wakeLockDot"></div>
-        <span id="wakeLockText">Screen Lock</span>
+    <div class="control-panel" id="controlPanel">
+        <button class="control-btn" id="fullscreenBtn" title="Toggle Fullscreen">
+            <span class="icon">⛶</span>
+            <span>Fullscreen</span>
+        </button>
+        <button class="control-btn active" id="wakeLockBtn" title="Toggle Screen Wake Lock">
+            <div class="indicator"></div>
+            <span>Keep Awake</span>
+        </button>
     </div>
 
     <!-- Firebase SDK -->
@@ -268,9 +323,9 @@
         const mainContainer = document.getElementById('mainContainer');
         const connectionStatus = document.getElementById('connectionStatus');
         const autoHideIndicator = document.getElementById('autoHideIndicator');
-        const wakeLockIndicator = document.getElementById('wakeLockIndicator');
-        const wakeLockDot = document.getElementById('wakeLockDot');
-        const wakeLockText = document.getElementById('wakeLockText');
+        const controlPanel = document.getElementById('controlPanel');
+        const wakeLockBtn = document.getElementById('wakeLockBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
         const body = document.body;
 
         let countdownInterval = null;
@@ -281,6 +336,8 @@
 
         // Wake Lock variables
         let wakeLock = null;
+        let wakeLockEnabled = true; // User preference
+        let wakeLockInterval = null; // For periodic re-request
 
         // Auto-hide configuration
         const AUTO_HIDE_CONFIG = {
@@ -292,27 +349,34 @@
         // ============ WAKE LOCK FUNCTIONALITY ============
         
         async function requestWakeLock() {
+            if (!wakeLockEnabled) return;
+
             try {
                 if ('wakeLock' in navigator) {
+                    // Release existing lock first
+                    if (wakeLock !== null) {
+                        await wakeLock.release();
+                    }
+
                     wakeLock = await navigator.wakeLock.request('screen');
                     console.log('Wake Lock activated');
                     
-                    wakeLockDot.classList.add('active');
-                    wakeLockText.textContent = 'Screen Awake';
+                    wakeLockBtn.classList.add('active');
 
                     // Listen for wake lock release
                     wakeLock.addEventListener('release', () => {
                         console.log('Wake Lock released');
-                        wakeLockDot.classList.remove('active');
-                        wakeLockText.textContent = 'Screen Lock';
+                        wakeLock = null;
+                        if (wakeLockEnabled) {
+                            wakeLockBtn.classList.remove('active');
+                        }
                     });
                 } else {
                     console.warn('Wake Lock API not supported');
-                    wakeLockText.textContent = 'Not Supported';
                 }
             } catch (err) {
                 console.error(`Wake Lock error: ${err.name}, ${err.message}`);
-                wakeLockText.textContent = 'Lock Failed';
+                wakeLock = null;
             }
         }
 
@@ -321,28 +385,101 @@
                 try {
                     await wakeLock.release();
                     wakeLock = null;
+                    console.log('Wake Lock manually released');
                 } catch (err) {
                     console.error('Error releasing wake lock:', err);
                 }
             }
         }
 
+        // Periodically re-request wake lock to ensure it stays active
+        function startWakeLockRefresh() {
+            stopWakeLockRefresh();
+            
+            // Re-request every 30 seconds to maintain lock
+            wakeLockInterval = setInterval(async () => {
+                if (wakeLockEnabled && (wakeLock === null || wakeLock.released)) {
+                    console.log('Refreshing wake lock...');
+                    await requestWakeLock();
+                }
+            }, 30000); // 30 seconds
+        }
+
+        function stopWakeLockRefresh() {
+            if (wakeLockInterval) {
+                clearInterval(wakeLockInterval);
+                wakeLockInterval = null;
+            }
+        }
+
         // Re-request wake lock when page becomes visible again
         document.addEventListener('visibilitychange', async () => {
-            if (document.visibilityState === 'visible' && wakeLock === null) {
+            if (document.visibilityState === 'visible' && wakeLockEnabled) {
+                console.log('Page visible, requesting wake lock...');
                 await requestWakeLock();
+            }
+        });
+
+        // Toggle wake lock on button click
+        wakeLockBtn.addEventListener('click', async () => {
+            wakeLockEnabled = !wakeLockEnabled;
+            
+            if (wakeLockEnabled) {
+                wakeLockBtn.classList.add('active');
+                await requestWakeLock();
+                startWakeLockRefresh();
+            } else {
+                wakeLockBtn.classList.remove('active');
+                await releaseWakeLock();
+                stopWakeLockRefresh();
             }
         });
 
         // Request wake lock on page load
         requestWakeLock();
+        startWakeLockRefresh();
 
-        // Also request on user interaction (for better browser compatibility)
-        document.addEventListener('click', () => {
-            if (wakeLock === null) {
-                requestWakeLock();
+        // ============ FULLSCREEN FUNCTIONALITY ============
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement && 
+                !document.webkitFullscreenElement && 
+                !document.mozFullScreenElement) {
+                // Enter fullscreen
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen();
+                } else if (document.documentElement.webkitRequestFullscreen) {
+                    document.documentElement.webkitRequestFullscreen();
+                } else if (document.documentElement.mozRequestFullScreen) {
+                    document.documentElement.mozRequestFullScreen();
+                }
+            } else {
+                // Exit fullscreen
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                }
             }
-        }, { once: true });
+        }
+
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+        // Update fullscreen button text based on state
+        document.addEventListener('fullscreenchange', updateFullscreenButton);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+        document.addEventListener('mozfullscreenchange', updateFullscreenButton);
+
+        function updateFullscreenButton() {
+            const isFullscreen = !!(document.fullscreenElement || 
+                                    document.webkitFullscreenElement || 
+                                    document.mozFullScreenElement);
+            
+            fullscreenBtn.querySelector('span:last-child').textContent = 
+                isFullscreen ? 'Exit Full' : 'Fullscreen';
+        }
 
         // ============ FIREBASE & TIMER LOGIC ============
 
@@ -462,7 +599,7 @@
             mainContainer.classList.remove('hidden');
             connectionStatus.classList.remove('hidden');
             autoHideIndicator.classList.remove('hidden');
-            wakeLockIndicator.classList.remove('hidden');
+            controlPanel.classList.remove('hidden');
         }
 
         function hideDisplay() {
@@ -470,7 +607,7 @@
             mainContainer.classList.add('hidden');
             connectionStatus.classList.add('hidden');
             autoHideIndicator.classList.add('hidden');
-            wakeLockIndicator.classList.add('hidden');
+            controlPanel.classList.add('hidden');
         }
 
         function stopAutoHide() {
@@ -518,9 +655,10 @@
             totalDuration = 0;
         }
 
-        // Clean up wake lock when page unloads
+        // Clean up on page unload
         window.addEventListener('beforeunload', () => {
             releaseWakeLock();
+            stopWakeLockRefresh();
         });
     </script>
 </body>
