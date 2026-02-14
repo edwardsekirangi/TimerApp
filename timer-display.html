@@ -268,6 +268,31 @@
             width: 100%;
             height: 100%;
         }
+
+        /* Sound indicator */
+        .sound-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(139, 92, 246, 0.9);
+            border-radius: 50%;
+            width: 200px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .sound-indicator.active {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="state-ready">
@@ -280,6 +305,8 @@
         <div class="time-display" id="timeDisplay">--:--</div>
         <div class="status-text" id="statusMessage">Ready</div>
     </div>
+
+    <div class="sound-indicator" id="soundIndicator">🔔</div>
 
     <div class="auto-hide-indicator" id="autoHideIndicator"></div>
     
@@ -326,6 +353,7 @@
         const controlPanel = document.getElementById('controlPanel');
         const wakeLockBtn = document.getElementById('wakeLockBtn');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const soundIndicator = document.getElementById('soundIndicator');
         const body = document.body;
 
         let countdownInterval = null;
@@ -333,18 +361,77 @@
         let totalDuration = 0;
         let autoHideTimeout = null;
         let isVisible = true;
+        let lastBeepTimestamp = null;
 
         // Wake Lock variables
         let wakeLock = null;
-        let wakeLockEnabled = true; // User preference
-        let wakeLockInterval = null; // For periodic re-request
+        let wakeLockEnabled = true;
+        let wakeLockInterval = null;
 
         // Auto-hide configuration
         const AUTO_HIDE_CONFIG = {
-            showDuration: 30000,      // Show for 30 seconds
-            hideDuration: 270000,     // Hide for 270 seconds (4.5 minutes)
-            finalMinutesThreshold: 120 // Stay visible for last 2 minutes (120 seconds)
+            showDuration: 30000,
+            hideDuration: 270000,
+            finalMinutesThreshold: 120
         };
+
+        // ============ SOUND GENERATION ============
+
+        // Create AudioContext
+        let audioContext = null;
+
+        function getAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioContext;
+        }
+
+        function playBeep(frequency = 880, duration = 0.15) {
+            return new Promise((resolve) => {
+                const ctx = getAudioContext();
+                const oscillator = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(ctx.destination);
+
+                oscillator.frequency.value = frequency;
+                oscillator.type = 'sine';
+
+                gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+
+                oscillator.start(ctx.currentTime);
+                oscillator.stop(ctx.currentTime + duration);
+
+                setTimeout(resolve, duration * 1000);
+            });
+        }
+
+        async function playBeepSequence(count = 3) {
+            // Show visual indicator
+            soundIndicator.classList.add('active');
+            
+            for (let i = 0; i < count; i++) {
+                await playBeep(880, 0.15);
+                if (i < count - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+            }
+
+            // Hide visual indicator
+            setTimeout(() => {
+                soundIndicator.classList.remove('active');
+            }, 300);
+        }
+
+        // Initialize audio context on first user interaction
+        document.addEventListener('click', () => {
+            if (!audioContext) {
+                getAudioContext();
+            }
+        }, { once: true });
 
         // ============ WAKE LOCK FUNCTIONALITY ============
         
@@ -353,7 +440,6 @@
 
             try {
                 if ('wakeLock' in navigator) {
-                    // Release existing lock first
                     if (wakeLock !== null) {
                         await wakeLock.release();
                     }
@@ -363,7 +449,6 @@
                     
                     wakeLockBtn.classList.add('active');
 
-                    // Listen for wake lock release
                     wakeLock.addEventListener('release', () => {
                         console.log('Wake Lock released');
                         wakeLock = null;
@@ -392,17 +477,15 @@
             }
         }
 
-        // Periodically re-request wake lock to ensure it stays active
         function startWakeLockRefresh() {
             stopWakeLockRefresh();
             
-            // Re-request every 30 seconds to maintain lock
             wakeLockInterval = setInterval(async () => {
                 if (wakeLockEnabled && (wakeLock === null || wakeLock.released)) {
                     console.log('Refreshing wake lock...');
                     await requestWakeLock();
                 }
-            }, 30000); // 30 seconds
+            }, 30000);
         }
 
         function stopWakeLockRefresh() {
@@ -412,7 +495,6 @@
             }
         }
 
-        // Re-request wake lock when page becomes visible again
         document.addEventListener('visibilitychange', async () => {
             if (document.visibilityState === 'visible' && wakeLockEnabled) {
                 console.log('Page visible, requesting wake lock...');
@@ -420,7 +502,6 @@
             }
         });
 
-        // Toggle wake lock on button click
         wakeLockBtn.addEventListener('click', async () => {
             wakeLockEnabled = !wakeLockEnabled;
             
@@ -435,7 +516,6 @@
             }
         });
 
-        // Request wake lock on page load
         requestWakeLock();
         startWakeLockRefresh();
 
@@ -445,7 +525,6 @@
             if (!document.fullscreenElement && 
                 !document.webkitFullscreenElement && 
                 !document.mozFullScreenElement) {
-                // Enter fullscreen
                 if (document.documentElement.requestFullscreen) {
                     document.documentElement.requestFullscreen();
                 } else if (document.documentElement.webkitRequestFullscreen) {
@@ -454,7 +533,6 @@
                     document.documentElement.mozRequestFullScreen();
                 }
             } else {
-                // Exit fullscreen
                 if (document.exitFullscreen) {
                     document.exitFullscreen();
                 } else if (document.webkitExitFullscreen) {
@@ -467,7 +545,6 @@
 
         fullscreenBtn.addEventListener('click', toggleFullscreen);
 
-        // Update fullscreen button text based on state
         document.addEventListener('fullscreenchange', updateFullscreenButton);
         document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
         document.addEventListener('mozfullscreenchange', updateFullscreenButton);
@@ -483,11 +560,9 @@
 
         // ============ FIREBASE & TIMER LOGIC ============
 
-        // Listen for timer updates from Firebase
         onValue(timerRef, (snapshot) => {
             const data = snapshot.val();
             
-            // Update connection status
             statusDot.classList.add('connected');
             statusText.textContent = 'Connected';
 
@@ -496,7 +571,22 @@
                 return;
             }
 
-            const { duration, startTime, isRunning, reset } = data;
+            const { duration, startTime, isRunning, reset, beepTrigger } = data;
+
+            // Handle beep trigger
+            if (beepTrigger && beepTrigger.timestamp !== lastBeepTimestamp) {
+                lastBeepTimestamp = beepTrigger.timestamp;
+                const count = beepTrigger.count || 3;
+                playBeepSequence(count);
+                
+                // Temporarily show display if hidden
+                if (!isVisible) {
+                    showDisplay();
+                    setTimeout(() => {
+                        if (!isVisible) hideDisplay();
+                    }, 3000);
+                }
+            }
 
             if (reset) {
                 resetDisplay();
@@ -526,7 +616,6 @@
             clearInterval(countdownInterval);
             endTime = startTimestamp + (durationSeconds * 1000);
 
-            // Start auto-hide cycle
             scheduleAutoHide();
 
             countdownInterval = setInterval(() => {
@@ -536,38 +625,33 @@
                 if (remaining === 0) {
                     clearInterval(countdownInterval);
                     stopAutoHide();
-                    showDisplay(); // Ensure visible when time is up
+                    showDisplay();
                     showTimeUp();
+                    playBeepSequence(5); // Play 5 beeps when time is up
                 } else {
                     displayTime(remaining);
                     updateStateBasedOnTime(remaining);
                     
-                    // Check if we should stay visible (final minutes)
                     if (remaining <= AUTO_HIDE_CONFIG.finalMinutesThreshold) {
                         stopAutoHide();
                         showDisplay();
                         autoHideIndicator.classList.remove('active');
                     }
                 }
-            }, 100); // Update every 100ms for smooth countdown
+            }, 100);
         }
 
         function scheduleAutoHide() {
-            // Clear any existing timeout
             stopAutoHide();
-            
-            // Start with display visible
             showDisplay();
             autoHideIndicator.classList.add('active');
             
-            // Schedule the hide/show cycle
             autoHideTimeout = setTimeout(() => {
                 toggleDisplayVisibility();
             }, AUTO_HIDE_CONFIG.showDuration);
         }
 
         function toggleDisplayVisibility() {
-            // Check if we're in the final minutes - if so, stop hiding
             if (endTime) {
                 const now = Date.now();
                 const remaining = Math.ceil((endTime - now) / 1000);
@@ -581,13 +665,11 @@
 
             if (isVisible) {
                 hideDisplay();
-                // Schedule next show
                 autoHideTimeout = setTimeout(() => {
                     toggleDisplayVisibility();
                 }, AUTO_HIDE_CONFIG.hideDuration);
             } else {
                 showDisplay();
-                // Schedule next hide
                 autoHideTimeout = setTimeout(() => {
                     toggleDisplayVisibility();
                 }, AUTO_HIDE_CONFIG.showDuration);
@@ -607,7 +689,6 @@
             mainContainer.classList.add('hidden');
             connectionStatus.classList.add('hidden');
             autoHideIndicator.classList.add('hidden');
-            // Keep controlPanel visible - removed from hiding
         }
 
         function stopAutoHide() {
@@ -655,7 +736,6 @@
             totalDuration = 0;
         }
 
-        // Clean up on page unload
         window.addEventListener('beforeunload', () => {
             releaseWakeLock();
             stopWakeLockRefresh();

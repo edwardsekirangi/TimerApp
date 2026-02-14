@@ -146,6 +146,12 @@
             box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
         }
 
+        .control-btn.beep {
+            background: #8b5cf6;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+        }
+
         .control-btn:active {
             transform: scale(0.95);
         }
@@ -220,6 +226,27 @@
             border-color: #3b82f6;
             color: #1e3a8a;
         }
+
+        .beep-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .beep-input {
+            padding: 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.75rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .beep-input:focus {
+            outline: none;
+            border-color: #8b5cf6;
+        }
     </style>
 </head>
 <body>
@@ -262,6 +289,22 @@
                 />
                 <button class="preset-btn" onclick="startCustom()" style="flex: 0 0 auto; padding: 1rem 2rem;">
                     Start
+                </button>
+            </div>
+
+            <div class="section-title">Alert Controls</div>
+            <div class="beep-controls">
+                <input 
+                    type="number" 
+                    id="beepCount" 
+                    class="beep-input" 
+                    placeholder="Beeps (1-10)" 
+                    min="1" 
+                    max="10"
+                    value="3"
+                />
+                <button class="control-btn beep" onclick="triggerBeep()">
+                    🔔 Sound Alert
                 </button>
             </div>
 
@@ -398,7 +441,8 @@
                 duration: seconds,
                 startTime: Date.now(),
                 isRunning: true,
-                reset: false
+                reset: false,
+                beepTrigger: null
             }).catch(error => {
                 console.error('Error starting timer:', error);
                 alert('Failed to start timer. Check console for details.');
@@ -427,7 +471,8 @@
                         duration: remaining,
                         startTime: null,
                         isRunning: false,
-                        reset: false
+                        reset: false,
+                        beepTrigger: null
                     });
                 }
             });
@@ -441,7 +486,8 @@
                         duration: data.duration,
                         startTime: Date.now(),
                         isRunning: true,
-                        reset: false
+                        reset: false,
+                        beepTrigger: null
                     });
                 }
             });
@@ -453,9 +499,26 @@
                     duration: 0,
                     startTime: null,
                     isRunning: false,
-                    reset: true
+                    reset: true,
+                    beepTrigger: null
                 });
             }
+        };
+
+        window.triggerBeep = function() {
+            const beepCount = parseInt(document.getElementById('beepCount').value) || 3;
+            const validCount = Math.min(Math.max(beepCount, 1), 10); // Clamp between 1-10
+            
+            get(timerRef).then((snapshot) => {
+                const data = snapshot.val() || {};
+                set(timerRef, {
+                    ...data,
+                    beepTrigger: {
+                        count: validCount,
+                        timestamp: Date.now()
+                    }
+                });
+            });
         };
 
         // Clean up on page unload
