@@ -196,6 +196,14 @@
             color: #667eea;
         }
 
+        .current-time.warning {
+            color: #f59e0b;
+        }
+
+        .current-time.critical {
+            color: #ef4444;
+        }
+
         .alert {
             background: #fef3c7;
             border: 2px solid #fbbf24;
@@ -272,24 +280,21 @@
         </div>
     </div>
 
-    <!-- Firebase SDK1 -->
+    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
         import { getDatabase, ref, set, onValue, get } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 
-        // Firebase configuration - YOU'LL NEED TO REPLACE THIS
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyAiG53GcvPpn6nUSRjHL0fZ9Zg8x7Gep7A",
-  authDomain: "timer-7f805.firebaseapp.com",
-  databaseURL: "https://timer-7f805-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "timer-7f805",
-  storageBucket: "timer-7f805.firebasestorage.app",
-  messagingSenderId: "441965417573",
-  appId: "1:441965417573:web:3436aa95d33177476a628c",
-  measurementId: "G-QRJVHZTHVT"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyAiG53GcvPpn6nUSRjHL0fZ9Zg8x7Gep7A",
+            authDomain: "timer-7f805.firebaseapp.com",
+            databaseURL: "https://timer-7f805-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "timer-7f805",
+            storageBucket: "timer-7f805.firebasestorage.app",
+            messagingSenderId: "441965417573",
+            appId: "1:441965417573:web:3436aa95d33177476a628c",
+            measurementId: "G-QRJVHZTHVT"
+        };
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -306,10 +311,45 @@ const firebaseConfig = {
 
         let currentDuration = 0;
         let isPaused = false;
+        let controllerInterval = null;
+        let controllerEndTime = null;
 
         // Check if Firebase is configured
         if (firebaseConfig.apiKey === "YOUR_API_KEY") {
             setupAlert.style.display = 'block';
+        }
+
+        // Update controller display every second
+        function startControllerCountdown() {
+            stopControllerCountdown();
+            
+            controllerInterval = setInterval(() => {
+                if (controllerEndTime) {
+                    const now = Date.now();
+                    const remaining = Math.max(0, Math.ceil((controllerEndTime - now) / 1000));
+                    displayTime(remaining);
+                    
+                    // Update color based on time remaining
+                    if (remaining > 120) {
+                        currentTime.className = 'current-time';
+                    } else if (remaining > 60) {
+                        currentTime.className = 'current-time warning';
+                    } else {
+                        currentTime.className = 'current-time critical';
+                    }
+                    
+                    if (remaining === 0) {
+                        stopControllerCountdown();
+                    }
+                }
+            }, 100); // Update every 100ms for smooth display
+        }
+
+        function stopControllerCountdown() {
+            if (controllerInterval) {
+                clearInterval(controllerInterval);
+                controllerInterval = null;
+            }
         }
 
         // Listen for timer state
@@ -324,15 +364,17 @@ const firebaseConfig = {
                 currentDuration = duration;
 
                 if (isRunning && startTime) {
-                    const now = Date.now();
-                    const endTime = startTime + (duration * 1000);
-                    const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
-                    displayTime(remaining);
+                    controllerEndTime = startTime + (duration * 1000);
+                    startControllerCountdown();
                     
                     startBtn.disabled = true;
                     pauseBtn.disabled = false;
                 } else {
+                    stopControllerCountdown();
+                    controllerEndTime = null;
                     displayTime(duration);
+                    currentTime.className = 'current-time';
+                    
                     startBtn.disabled = false;
                     pauseBtn.disabled = true;
                 }
@@ -341,6 +383,7 @@ const firebaseConfig = {
             console.error('Firebase error:', error);
             statusDot.classList.remove('connected');
             statusText.textContent = 'Disconnected';
+            stopControllerCountdown();
         });
 
         function displayTime(seconds) {
@@ -414,6 +457,11 @@ const firebaseConfig = {
                 });
             }
         };
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            stopControllerCountdown();
+        });
     </script>
 </body>
 </html>
